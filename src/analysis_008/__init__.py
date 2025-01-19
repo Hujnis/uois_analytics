@@ -6,31 +6,21 @@ import pandas as pd
 # https://github.com/Hujnis/OUISproject
 #
 #####################################################################################
-query = """query($where: GroupInputWhereFilter){
-    result: groupPage (where: $where, limit:1000) {
+query = """query ($where: EventInputFilter){
+  result: eventPage(where:$where, limit: 1000){
     id
     name
-    memberships(limit:1000) {
-      user {
-        id
-        fullname
-        classifications {
-          level {
-            id
-            name
-          }
-          id
-          order
-          semester {
-            id
-            order
-            subject {
-              id
-              name
-            }
-          }
-        }
-      }
+    place
+    placeId
+    startdate
+    enddate
+    eventType{
+      id
+      name
+    }
+    groups{
+      id
+      name
     }
   }
 }"""
@@ -52,17 +42,16 @@ async def resolve_json(variables, cookies):
 async def resolve_flat_json(variables, cookies):
     jsonData = await resolve_json(variables=variables, cookies=cookies)
     mapper = {
-        "group_id": "id",
-        "group_name": "name",
-        "user_id": "memberships.user.id",
-        "user_email": "memberships.user.email",
-        "user_fullname": "memberships.user.fullname",
-        "classification_id": "memberships.user.classifications.id",
-        "classification_order": "memberships.user.classifications.order",
-        "classification_level": "memberships.user.classifications.level.name",
-        "classification_subject_id": "memberships.user.classifications.semester.subject.id",
-        "classification_subject_name": "memberships.user.classifications.semester.subject.name",
-        "classification_sem": "memberships.user.classifications.semester.order",       
+        "eventID": "id",
+        "eventName": "name",
+        "placeID": "placeId",
+        "place" :"place",
+        "startDate": "startdate",
+        "endDate": "enddate",
+        "eventTypeID": "eventType.id",
+        "eventType": "eventType.name",
+        "groupID": "groups.id",
+        "groupName": "groups.name",
     }
     # print(jsonData, flush=True)
     pivotdata = list(flatten(jsonData, {}, mapper))
@@ -92,6 +81,7 @@ from ..utils import process_df_as_html_page
 import json
 import re
 import io
+import datetime
 
 def createRouter(prefix):
     mainpath = "/facilities/events"
@@ -136,13 +126,16 @@ def createRouter(prefix):
     async def user_classification_json(
         request: Request, 
         where: str = Query(description=WhereDescription), 
+        startdate: datetime.datetime = Query(description=""),
+        enddate: datetime.datetime = Query(description="")
     ):
         "Data ve formátu JSON (stromová struktura) nevhodná pro kontingenční tabulku"
         wherevalue = None if where is None else re.sub(r'{([^:"]*):', r'{"\1":', where) 
         wherejson = json.loads(wherevalue)
         pd = await resolve_json(
             variables={
-                "where": wherejson
+                "where": wherejson,
+                "startdate": f"(startdate)",
             },
             cookies=request.cookies
         )
